@@ -9,7 +9,6 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters
 )
 
-# --- NEW: Import the translations dictionary ---
 from translations import translations
 
 # 🔐 Settings
@@ -43,9 +42,27 @@ rates = {
 def get_text(user_id: int, key: str, **kwargs) -> str:
     """Retrieves translated text for a given key and user's language."""
     user_lang = user_state.get(user_id, {}).get('lang', 'en') # Default to English if not set
-    # Fallback to English if translation for specific key is missing in chosen language
     text = translations.get(user_lang, {}).get(key, translations['en'].get(key, f"Missing translation for {key}"))
     return text.format(**kwargs)
+
+# Language names map for admin notifications
+lang_name_map = {'en': 'English', 'ru': 'Русский', 'pl': 'Polski'}
+
+async def show_language_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Displays the language selection menu."""
+    user_id = update.effective_user.id
+    keyboard = [
+        [InlineKeyboardButton("English 🇬🇧", callback_data="lang_en")],
+        [InlineKeyboardButton("Русский 🇷🇺", callback_data="lang_ru")],
+        [InlineKeyboardButton("Polski 🇵🇱", callback_data="lang_pl")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    # Check if we're coming from a callback or a command
+    if update.callback_query:
+        await update.callback_query.edit_message_text(get_text(user_id, 'choose_language'), reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(get_text(user_id, 'choose_language'), reply_markup=reply_markup)
+
 
 # 📱 Initial /start Command or Language Selection
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -56,16 +73,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user_id = update.effective_user.id
     if user_id not in user_state or 'lang' not in user_state[user_id]:
-        # Prompt for language selection
-        keyboard = [
-            [InlineKeyboardButton("English 🇬🇧", callback_data="lang_en")],
-            [InlineKeyboardButton("Русский 🇷🇺", callback_data="lang_ru")],
-            [InlineKeyboardButton("Polski 🇵🇱", callback_data="lang_pl")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(get_text(user_id, 'choose_language'), reply_markup=reply_markup)
+        await show_language_menu(update, context)
     else:
-        # User already has a language, show main menu
         await show_main_menu(update, context)
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -74,10 +83,10 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton(get_text(user_id, 'buy_usdt'), callback_data="buy")],
         [InlineKeyboardButton(get_text(user_id, 'sell_usdt'), callback_data="sell")],
-        [InlineKeyboardButton(get_text(user_id, 'link_to_channel'), callback_data="channel")]
+        [InlineKeyboardButton(get_text(user_id, 'link_to_channel'), callback_data="channel")],
+        [InlineKeyboardButton(get_text(user_id, 'switch_language_button'), callback_data="switch_language")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    # Use reply_text for initial menu, edit_message_text if coming from a callback
     if update.callback_query:
         await update.callback_query.edit_message_text(get_text(user_id, 'welcome_choose_action'), reply_markup=reply_markup)
     else:
@@ -89,11 +98,9 @@ async def rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles the /rate command, displaying current buy and sell rates."""
     user_id = update.effective_user.id
     text = get_text(user_id, 'current_rates_title')
-
     text += get_text(user_id, 'buy_section')
     for currency, value in rates["buy"].items():
         text += f"1 USDT = {value} {currency}\n"
-
     text += "\n" + get_text(user_id, 'sell_section')
     for currency, value in rates["sell"].items():
         text += f"{value} {currency} = 1 USDT\n"
@@ -109,11 +116,9 @@ async def set_rate_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ADMIN_IDS:
         return
-
     if len(context.args) != 2:
         await update.message.reply_text(get_text(user_id, 'usage_setratebuy'))
         return
-
     currency, value_str = context.args
     try:
         value = float(value_str)
@@ -135,11 +140,9 @@ async def set_rate_sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in ADMIN_IDS:
         return
-
     if len(context.args) != 2:
         await update.message.reply_text(get_text(user_id, 'usage_setratesell'))
         return
-
     currency, value_str = context.args
     try:
         value = float(value_str)
@@ -164,12 +167,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action.startswith('lang_'):
         lang_code = action.split('_')[1]
         user_state[user_id] = {'lang': lang_code}
-        lang_name_map = {'en': 'English', 'ru': 'Русский', 'pl': 'Polski'}
         await query.edit_message_text(get_text(user_id, 'language_set', lang_name=lang_name_map.get(lang_code, lang_code)))
         await show_main_menu(update, context)
         return
 
-    # Define a reusable 'back' keyboard
+    # --- NEW: Handle "Switch Language" button ---
+    if action == "switch_language":
+        await show_language_menu(update, context)
+        return
+
     back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(get_text(user_id, 'back'), callback_data="back_to_start")]])
     
     # --- LOGIC FOR "back_to_start" BUTTON ---
@@ -186,8 +192,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # --- LOGIC FOR "buy" AND "sell" BUTTONS ---
-    # We now store the message_id to be able to delete it later
-    # The language must be preserved for future messages
     user_state[user_id] = {'action': action, 'message_id': query.message.message_id, 'lang': user_state.get(user_id, {}).get('lang', 'en')}
     
     rate_info = rates.get(action)
@@ -215,28 +219,31 @@ async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.message.from_user.username or update.message.from_user.full_name or f"id: {user_id}"
     city = update.message.text.strip()
 
-    user_lang = user_state.get(user_id, {}).get('lang', 'en')
+    user_data = user_state.get(user_id, {})
+    user_lang_code = user_data.get('lang', 'en')
+    user_lang_name = lang_name_map.get(user_lang_code, user_lang_code)
 
-    if user_id not in user_state or 'action' not in user_state[user_id]:
-        if 'lang' not in user_state.get(user_id, {}):
+    if 'action' not in user_data:
+        if 'lang' not in user_data:
             await start(update, context)
         else:
             main_keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(get_text(user_id, 'buy_usdt'), callback_data="buy")],
                 [InlineKeyboardButton(get_text(user_id, 'sell_usdt'), callback_data="sell")],
-                [InlineKeyboardButton(get_text(user_id, 'link_to_channel'), callback_data="channel")]
+                [InlineKeyboardButton(get_text(user_id, 'link_to_channel'), callback_data="channel")],
+                [InlineKeyboardButton(get_text(user_id, 'switch_language_button'), callback_data="switch_language")]
             ])
             await update.message.reply_text(get_text(user_id, 'select_action_first'), reply_markup=main_keyboard)
         return
 
-    message_to_delete_id = user_state[user_id].get('message_id')
+    message_to_delete_id = user_data.get('message_id')
     if message_to_delete_id:
         try:
             await context.bot.delete_message(chat_id=user_id, message_id=message_to_delete_id)
         except Exception as e:
-            print(get_text(user_id, 'error_sending_admin_message', admin_id=user_id, error=e))
+            print(f"Failed to delete message {message_to_delete_id} for user {user_id}: {e}")
 
-    action = user_state[user_id]['action']
+    action = user_data['action']
     action_text_translated = get_text(user_id, 'buy_action_text') if action == 'buy' else get_text(user_id, 'sell_action_text')
     del user_state[user_id]
 
@@ -250,7 +257,7 @@ async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await context.bot.send_message(
                 chat_id=admin_id,
-                text=get_text(user_id, 'new_request_admin', username=username, action_text=action_text_translated, city=city),
+                text=get_text(user_id, 'new_request_admin', username=username, action_text=action_text_translated, city=city, user_lang_name=user_lang_name),
                 parse_mode='HTML'
             )
         except Exception as e:
