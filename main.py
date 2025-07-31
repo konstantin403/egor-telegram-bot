@@ -51,7 +51,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles the /start command, sending a welcome message and action buttons."""
     keyboard = [
         [InlineKeyboardButton("💰 Купить USDT", callback_data="buy")],
-        [InlineKeyboardButton("💸 Продать USDT", callback_data="sell")]
+        [InlineKeyboardButton("💸 Продать USDT", callback_data="sell")],
+        [InlineKeyboardButton("💸 Сылка на канал", callback_data="channel")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("🚀 Добро пожаловать! Выберите действие:", reply_markup=reply_markup)
@@ -136,6 +137,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rate_info = rates.get(action) # Use .get() for safer access
     if not rate_info:
         await query.edit_message_text("❌ Произошла ошибка при получении курсов.")
+        return
+
+    if action == "channel"
+        channel = f"Ссылка на наш канал\n\n" + "https://t.me/polusdtchannel"
+
+        await query.edit_message_text(channel)
         return
 
     text = f"🚀 Вы выбрали {'покупку' if action == 'buy' else 'продажу'} USDT\n\n"
