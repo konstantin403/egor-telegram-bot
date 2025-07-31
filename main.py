@@ -117,7 +117,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Define a reusable 'back' keyboard
     back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]])
     
-    # --- NEW LOGIC FOR "back_to_start" BUTTON ---
+    # --- LOGIC FOR "back_to_start" BUTTON ---
     if action == "back_to_start":
         main_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💰 Купить USDT", callback_data="buy")],
@@ -127,7 +127,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🚀 Добро пожаловать! Выберите действие:", reply_markup=main_keyboard)
         return
 
-    # --- NEW LOGIC FOR "channel" BUTTON ---
+    # --- LOGIC FOR "channel" BUTTON ---
     if action == "channel":
         await query.edit_message_text(
             "🔗 Ссылка на наш канал\n\nhttps://t.me/polusdtchannel",
@@ -135,8 +135,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # --- EXISTING LOGIC FOR "buy" AND "sell" BUTTONS ---
-    user_state[user_id] = {'action': action}
+    # --- LOGIC FOR "buy" AND "sell" BUTTONS ---
+    # We now store the message_id to be able to delete it later
+    user_state[user_id] = {'action': action, 'message_id': query.message.message_id}
 
     rate_info = rates.get(action)
     if not rate_info:
@@ -171,6 +172,15 @@ async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
         await update.message.reply_text("Сначала выберите действие через /start.", reply_markup=main_keyboard)
         return
+
+    # --- NEW: Delete the previous message with the keyboard ---
+    message_to_delete_id = user_state[user_id].get('message_id')
+    if message_to_delete_id:
+        try:
+            await context.bot.delete_message(chat_id=user_id, message_id=message_to_delete_id)
+        except Exception as e:
+            # Handle cases where the message is already deleted or not found
+            print(f"Failed to delete message {message_to_delete_id} for user {user_id}: {e}")
 
     action = user_state[user_id]['action']
     action_text = "КУПИТЬ 🟢" if action == "buy" else "ПРОДАТЬ 🔴"
