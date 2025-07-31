@@ -8,7 +8,7 @@ from telegram.ext import (
 print(os.getenv("TELEGRAM_TOKEN"))
 print(os.getenv("ADMIN_IDS"))
 TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_IDS = int(os.getenv("ADMIN_IDS"))
+ADMIN_IDS = os.getenv("ADMIN_IDS")
 
 # 💾 Временное хранилище
 user_state = {}
