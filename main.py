@@ -1,9 +1,6 @@
 import os
-from dotenv import load_dotenv # Import load_dotenv for local development
+from dotenv import load_dotenv
 
-# Load environment variables from .env file (for local development)
-# On Railway, these variables are injected directly and this line is not strictly needed,
-# but it's good practice for local testing.
 load_dotenv()
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -17,7 +14,6 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 admin_ids_str = os.getenv("ADMIN_IDS", "")
 ADMIN_IDS = [int(aid.strip()) for aid in admin_ids_str.split(',') if aid.strip().isdigit()]
 
-# Basic check for essential variables
 if not TOKEN:
     print("Error: TELEGRAM_TOKEN environment variable is not set.")
     exit(1)
@@ -46,7 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("💰 Купить USDT", callback_data="buy")],
         [InlineKeyboardButton("💸 Продать USDT", callback_data="sell")],
-        [InlineKeyboardButton("🔗 Ссылка на наш канал", callback_data="channel")] # Corrected typo and text
+        [InlineKeyboardButton("🔗 Ссылка на наш канал", callback_data="channel")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("🚀 Добро пожаловать! Выберите действие:", reply_markup=reply_markup)
@@ -55,11 +51,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles the /rate command, displaying current buy and sell rates."""
     text = "💱 <b>Актуальные курсы USDT</b>:\n\n"
-
     text += "🟢 <b>Покупка:</b>\n"
     for currency, value in rates["buy"].items():
         text += f"1 USDT = {value} {currency}\n"
-
     text += "\n🔴 <b>Продажа:</b>\n"
     for currency, value in rates["sell"].items():
         text += f"{value} {currency} = 1 USDT\n"
@@ -74,11 +68,9 @@ async def set_rate_buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     if update.effective_user.id not in ADMIN_IDS:
         return
-
     if len(context.args) != 2:
         await update.message.reply_text("❗ Используй: /setratebuy PLN 3.25")
         return
-
     currency, value_str = context.args
     try:
         value = float(value_str)
@@ -99,11 +91,9 @@ async def set_rate_sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     if update.effective_user.id not in ADMIN_IDS:
         return
-
     if len(context.args) != 2:
         await update.message.reply_text("❗ Используй: /setratesell PLN 3.97")
         return
-
     currency, value_str = context.args
     try:
         value = float(value_str)
@@ -121,13 +111,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles callback queries from inline keyboard buttons."""
     query = update.callback_query
     await query.answer()
-
     user_id = query.from_user.id
     action = query.data
 
+    # Define a reusable 'back' keyboard
+    back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]])
+    
+    # --- NEW LOGIC FOR "back_to_start" BUTTON ---
+    if action == "back_to_start":
+        main_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💰 Купить USDT", callback_data="buy")],
+            [InlineKeyboardButton("💸 Продать USDT", callback_data="sell")],
+            [InlineKeyboardButton("🔗 Ссылка на наш канал", callback_data="channel")]
+        ])
+        await query.edit_message_text("🚀 Добро пожаловать! Выберите действие:", reply_markup=main_keyboard)
+        return
+
     # --- NEW LOGIC FOR "channel" BUTTON ---
     if action == "channel":
-        await query.edit_message_text("Ссылка на наш канал\n\nhttps://t.me/polusdtchannel")
+        await query.edit_message_text(
+            "🔗 Ссылка на наш канал\n\nhttps://t.me/polusdtchannel",
+            reply_markup=back_keyboard
+        )
         return
 
     # --- EXISTING LOGIC FOR "buy" AND "sell" BUTTONS ---
@@ -135,7 +140,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     rate_info = rates.get(action)
     if not rate_info:
-        await query.edit_message_text("❌ Произошла ошибка при получении курсов.")
+        await query.edit_message_text("❌ Произошла ошибка при получении курсов.", reply_markup=back_keyboard)
         return
 
     text = f"🚀 Вы выбрали {'покупку' if action == 'buy' else 'продажу'} USDT\n\n"
@@ -148,7 +153,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"{value} {currency} = 1 USDT\n"
 
     text += "\n🌍 Введите ваш город:"
-    await query.edit_message_text(text)
+    await query.edit_message_text(text, reply_markup=back_keyboard)
 
 # 🏙 Обработка ввода города
 async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -158,7 +163,13 @@ async def handle_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     city = update.message.text.strip()
 
     if user_id not in user_state or 'action' not in user_state[user_id]:
-        await update.message.reply_text("Сначала выберите действие через /start.")
+        # If user starts with text, send them back to start
+        main_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💰 Купить USDT", callback_data="buy")],
+            [InlineKeyboardButton("💸 Продать USDT", callback_data="sell")],
+            [InlineKeyboardButton("🔗 Ссылка на наш канал", callback_data="channel")]
+        ])
+        await update.message.reply_text("Сначала выберите действие через /start.", reply_markup=main_keyboard)
         return
 
     action = user_state[user_id]['action']
