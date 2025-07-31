@@ -6,7 +6,8 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters
 )
 from telegram.error import TelegramError
-
+print(os.getenv("TELEGRAM_TOKEN"))
+print(os.getenv("ADMIN_ID"))
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
