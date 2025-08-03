@@ -29,12 +29,14 @@ rates = {
     "buy": {
         "PLN🇵🇱": 3.14,
         "USD🇺🇸": 0.84,
-        "EUR🇪🇺": 0.74
+        "EUR🇪🇺": 0.74,
+        "UKR🇪🇺": 0.55
     },
     "sell": {
         "PLN🇵🇱": 3.97,
         "USD🇺🇸": 1.06,
-        "EUR🇪🇺": 0.93
+        "EUR🇪🇺": 0.93,
+        "UKR🇪🇺": 0.33
     }
 }
 
@@ -55,6 +57,7 @@ async def show_language_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         [InlineKeyboardButton("English 🇬🇧", callback_data="lang_en")],
         [InlineKeyboardButton("Русский 🇷🇺", callback_data="lang_ru")],
         [InlineKeyboardButton("Polski 🇵🇱", callback_data="lang_pl")],
+        [InlineKeyboardButton("Ukrainian", callback_data="lang_ua")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     # Check if we're coming from a callback or a command
